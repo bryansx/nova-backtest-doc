@@ -1,5 +1,5 @@
-Installation
-============
+Example
+=======
 
 
 To use NovaL@abs backtest, first install it using pip:

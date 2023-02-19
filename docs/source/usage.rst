@@ -1,5 +1,8 @@
 Usage
 =====
 
-Write the entry strategy
-------------------------
+The BackTest class
+------------------
+
+.. automodule:: novalabs.utils.backtest
+   :members:
