@@ -2,12 +2,12 @@
 
 # -- Project information
 
-project = 'Lumache'
-copyright = '2021, Graziella'
-author = 'Graziella'
+project = 'NovaLabs backtest'
+copyright = '2022, NovaLabs'
+author = 'NovaLabs'
 
-release = '0.1'
-version = '0.1.0'
+release = '1.1'
+version = '1.1.2'
 
 # -- General configuration
 
@@ -20,7 +20,7 @@ extensions = [
 ]
 
 intersphinx_mapping = {
-    'python': ('https://docs.python.org/3/', None),
+    'python': ('https://docs.python.org/3.9/', None),
     'sphinx': ('https://www.sphinx-doc.org/en/master/', None),
 }
 intersphinx_disabled_domains = ['std']
