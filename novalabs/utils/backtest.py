@@ -8,7 +8,7 @@ import math
 import json
 import time
 
-from novalabs.utils.constant import VAR_NEEDED_FOR_POSITION
+from novalabs.utils.constant import VAR_NEEDED_FOR_POSITION, FEES
 from novalabs.clients.clients import clients
 from novalabs.utils.helpers import get_timedelta_unit, convert_max_holding_to_candle_nb, convert_candle_to_timedelta, \
     interval_to_milliseconds
@@ -19,22 +19,44 @@ simplefilter(action="ignore", category=pd.errors.PerformanceWarning)
 
 
 class BackTest:
+    """BackTest
+
+    dfwewdf.
+
+    Args:
+        exchange (str): exchange to backtest on ('bybit', 'binance', 'okx', 'huobi', 'kucoin', 'oanda' or 'btcex').
+        strategy_name (str): name of the strategy.
+        candle (str): candle size / timeframe with format %m or %h or %d (ex: 15m for five minutes candles).
+        list_pairs (list): list of pairs to backtest.
+        start (datetime): start datetime.
+        end (datetime): end datetime.
+        start_bk (float): start bankrool size (usually USDT).
+        leverage (int): leverage to use for trades.
+        max_pos (int): maximum number of simultaneous positions. 
+        max_holding (timedetla): maximum holding time of a position.
+        quote_asset (str): quote asset (default = 'USDT').
+        geometric_sizes (bool): if True, ajust positions sizes with bankroll evolution. If profit > 0 positions sizes will increase proportionally, else will decrease (default = False).
+        print_all_pairs_charts (bool): if True, save & print each pairs profits charts. Else, save & print only cumulative profits chart (default = False).
+        update_data (bool): if True, download and update local historical data (default = False).
+        plot_exposure (bool): if True, plot wallet exposure through time.
+        key (str): exchange's API KEY (**only for oanda**)
+        secret (str): exchange's API SECRET (**only for oanda**)
+    """
 
     def __init__(self,
                  exchange: str,
                  strategy_name: str,
                  candle: str,
-                 list_pair,
+                 list_pairs: list,
                  start: datetime,
                  end: datetime,
-                 fees: float,
                  start_bk: float,
                  leverage: int,
                  max_pos: int,
                  max_holding: timedelta,
                  quote_asset: str = 'USDT',
                  geometric_sizes: bool = False,
-                 save_all_pairs_charts: bool = False,
+                 print_all_pairs_charts: bool = False,
                  update_data: bool = False,
                  plot_exposure: bool = False,
                  key: str = "",
@@ -55,33 +77,33 @@ class BackTest:
         self.start = start
         self.end = end
         self.candle = candle
-        self.fees = fees
+        self.fees = FEES[exchange]
         self.amount_per_position = 100
-        self.list_pair = list_pair
+        self.list_pairs = list_pairs
         self.last_exit_date = np.nan
         self.max_pos = max_pos
         self.max_holding = max_holding
-        self.save_all_pairs_charts = save_all_pairs_charts
+        self.print_all_pairs_charts = print_all_pairs_charts
         self.update_data = update_data
         self.plot_exposure = plot_exposure
         self.time_step = get_timedelta_unit(interval=candle)
 
         # Get the list of pairs on which we perform the back test
-        if type(self.list_pair).__name__ == 'str':
-            raw_list_pair = self.get_list_pair()
+        if type(self.list_pairs).__name__ == 'str':
+            raw_list_pairs = self.get_list_pairs()
 
-            if self.list_pair.split()[0] == 'Random':
-                nb_pairs = self.list_pair.split()[1]
+            if self.list_pairs.split()[0] == 'Random':
+                nb_pairs = self.list_pairs.split()[1]
 
-                assert nb_pairs.isnumeric(), "Please enter valid list_pair"
+                assert nb_pairs.isnumeric(), "Please enter valid list_pairs"
 
-                self.list_pair = random.choices(raw_list_pair, k=int(nb_pairs))
+                self.list_pairs = random.choices(raw_list_pairs, k=int(nb_pairs))
 
-            elif self.list_pair != 'All pairs':
-                raise Exception("Please enter valid list_pair")
+            elif self.list_pairs != 'All pairs':
+                raise Exception("Please enter valid list_pairs")
 
             else:
-                self.list_pair = raw_list_pair
+                self.list_pairs = raw_list_pairs
 
         self.verify_all_pairs()
 
@@ -108,7 +130,7 @@ class BackTest:
     def exit_strategy(self, df: pd.DataFrame) -> pd.DataFrame:
         pass
 
-    def get_list_pair(self) -> list:
+    def get_list_pairs(self) -> list:
         """
         Note:
             Only stable coins pairs will be filtered [BUSD / USDT]
@@ -123,9 +145,9 @@ class BackTest:
         return list_pairs
 
     def verify_all_pairs(self):
-        all_pairs = self.get_list_pair()
+        all_pairs = self.get_list_pairs()
 
-        for pair in self.list_pair:
+        for pair in self.list_pairs:
             assert pair in all_pairs, f"{pair} is not a valid trading pair"
 
     def get_all_historical_data(self, pair: str) -> pd.DataFrame:
@@ -477,7 +499,7 @@ class BackTest:
         # update bot total exposure
         self.df_pos['wallet_exposure'] = self.df_pos['wallet_exposure'] + self.df_pos[f'{pair}_exposure']
 
-        if self.save_all_pairs_charts:
+        if not self.print_all_pairs_charts:
             self.df_pos = self.df_pos.drop([f'total_profit_{pair}', f'long_profit_{pair}', f'short_profit_{pair}'],
                                            axis=1)
 
@@ -700,19 +722,24 @@ class BackTest:
                                                       * (2 + self.df_all_pairs_positions['PL_prc_realized'])
 
         # Update self.df_all_positions
-        for pair in self.list_pair:
+        for pair in self.list_pairs:
             self.df_all_positions[pair] = self.df_all_pairs_positions[self.df_all_pairs_positions['pair'] == pair]
 
         # Create timeseries for all pairs
-        for pair in self.list_pair:
+        for pair in self.list_pairs:
             self.create_timeseries(
                 df=self.df_all_positions[pair],
                 pair=pair
             )
+
             self.get_pair_stats(
                 df=self.df_all_positions[pair],
                 pair=pair
             )
+
+            if self.print_all_pairs_charts:
+                self.plot_performance_graph(pair)
+
 
         self.df_pairs_stat = self.df_pairs_stat.set_index('pair', drop=False)
 
@@ -984,13 +1011,13 @@ class BackTest:
         df['stop_loss'] = np.where(df['entry_signal'] == 1,
                                    pd.DataFrame({'stop_loss': df['stop_loss'],
                                                  'all_entry_price': df['all_entry_price'] * (
-                                                             1 - 1 / self.leverage)}).max(
+                                                         1 - 1 / self.leverage)}).max(
                                        axis=1), df['stop_loss'])
 
         df['stop_loss'] = np.where(df['entry_signal'] == -1,
                                    pd.DataFrame({'stop_loss': df['stop_loss'],
                                                  'all_entry_price': df['all_entry_price'] * (
-                                                             1 + 1 / self.leverage)}).min(
+                                                         1 + 1 / self.leverage)}).min(
                                        axis=1), df['stop_loss'])
 
         return df
@@ -1105,7 +1132,7 @@ class BackTest:
         RUN BACK TEST !
         """
 
-        for pair in self.list_pair:
+        for pair in self.list_pairs:
 
             print(f'BACK TESTING {pair}', "\U000023F3", end="\r")
 

@@ -26,4 +26,3 @@ Contents
    installation
    usage
    example
-

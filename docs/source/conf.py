@@ -1,5 +1,10 @@
 # Configuration file for the Sphinx documentation builder.
 
+import os
+import sys
+sys.path.insert(0, os.path.abspath('../..'))
+from novalabs.utils import *
+
 # -- Project information
 
 project = 'NovaLabs backtest'
@@ -17,7 +22,12 @@ extensions = [
     'sphinx.ext.autodoc',
     'sphinx.ext.autosummary',
     'sphinx.ext.intersphinx',
+    'sphinx.ext.napoleon',
 ]
+
+napoleon_google_docstring = True
+napoleon_use_param = False
+napoleon_use_ivar = True
 
 intersphinx_mapping = {
     'python': ('https://docs.python.org/3.9/', None),
