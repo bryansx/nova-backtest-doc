@@ -7,8 +7,6 @@ import numpy as np
 import hashlib
 import time
 import hmac
-from multiprocessing import Pool
-from typing import Union
 
 
 class Binance:
