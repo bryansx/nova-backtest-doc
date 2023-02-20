@@ -11,7 +11,7 @@ project = 'NovaLabs backtest'
 copyright = '2022, NovaLabs'
 author = 'NovaLabs'
 
-release = '1.1'
+release = ''
 version = '1.1.2'
 
 # -- General configuration
