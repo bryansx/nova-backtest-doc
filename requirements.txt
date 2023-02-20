@@ -6,3 +6,5 @@ setuptools
 decouple
 pytest
 matplotlib
+hashlib
+typing
