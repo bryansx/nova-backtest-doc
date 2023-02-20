@@ -20,8 +20,7 @@ simplefilter(action="ignore", category=pd.errors.PerformanceWarning)
 
 class BackTest:
     """BackTest
-
-    dfwewdf.
+    Complete Python class for backtesting trading strategies.
 
     Args:
         exchange (str): exchange to backtest on ('bybit', 'binance', 'okx', 'huobi', 'kucoin', 'oanda' or 'btcex').
@@ -37,7 +36,6 @@ class BackTest:
         quote_asset (str): quote asset (default = 'USDT').
         geometric_sizes (bool): if True, ajust positions sizes with bankroll evolution. If profit > 0 positions sizes will increase proportionally, else will decrease (default = False).
         print_all_pairs_charts (bool): if True, save & print each pairs profits charts. Else, save & print only cumulative profits chart (default = False).
-        update_data (bool): if True, download and update local historical data (default = False).
         plot_exposure (bool): if True, plot wallet exposure through time.
         key (str): exchange's API KEY (**only for oanda**)
         secret (str): exchange's API SECRET (**only for oanda**)
@@ -57,7 +55,6 @@ class BackTest:
                  quote_asset: str = 'USDT',
                  geometric_sizes: bool = False,
                  print_all_pairs_charts: bool = False,
-                 update_data: bool = False,
                  plot_exposure: bool = False,
                  key: str = "",
                  secret: str = "",
@@ -84,7 +81,6 @@ class BackTest:
         self.max_pos = max_pos
         self.max_holding = max_holding
         self.print_all_pairs_charts = print_all_pairs_charts
-        self.update_data = update_data
         self.plot_exposure = plot_exposure
         self.time_step = get_timedelta_unit(interval=candle)
 
@@ -105,7 +101,7 @@ class BackTest:
             else:
                 self.list_pairs = raw_list_pairs
 
-        self.verify_all_pairs()
+        self._verify_all_pairs()
 
         # Initialize DataFrames
         self.df_all_positions = {}
@@ -122,45 +118,87 @@ class BackTest:
         self.df_all_pairs_positions = pd.DataFrame()
 
     def build_indicators(self, df: pd.DataFrame) -> pd.DataFrame:
-        pass
+        """
+        Args:
+            df (DataFrame): DataFrame returned by get_historical_data().
+
+        Note: 
+            Must be re-write to fit with your strategy.
+
+        Returns: 
+            DataFrame returned by get_historical_data() with all the indicators (new columns added) neccessary to the strategy.
+        """
+        raise Exception("Please write your build_indicator() method.")
 
     def entry_strategy(self, df: pd.DataFrame) -> pd.DataFrame:
-        pass
+        """
+        Args:
+            df (DataFrame): DataFrame returned by build_indicators().
+
+        Note: 
+            Must be re-write to fit with your strategy.
+
+        Returns: 
+            DataFrame returned by build_indicators() with 4 new columns.
+                - entry_signal (int): **-1** for entering short at the next open, **+1** for long.
+                - position_size (float): **float between 0 and 1**. Position size in quote asset = position_size * (self.leverage / self.max_pos)
+                - stop_loss (float): stop loss price.
+                - take_profit (float): take profit price.
+        """
+        raise Exception("Please write your entry_strategy() method.")
 
     def exit_strategy(self, df: pd.DataFrame) -> pd.DataFrame:
-        pass
+        """
+        Args:
+            df (DataFrame): DataFrame returned by entry_strategy().
+
+        Note: 
+            Must be re-write to fit with your strategy.
+
+        Returns: 
+            DataFrame returned by entry_strategy() with 1 new column.
+                - exit_signal (int): **-1** for exiting long (sell the asset) at the next open, **+1** for for exiting short (buy the asset).
+        """
+        raise Exception("Please write your exit_strategy() method.")
 
     def get_list_pairs(self) -> list:
         """
-        Note:
-            Only stable coins pairs will be filtered [BUSD / USDT]
-        Returns:
-             list of all the pairs that we can trade on.
-        """
-        info = self.client.get_pairs_info()
-        list_pairs = []
-        for pair, info in info.items():
-            if info['quote_asset'] == self.quote_asset:
-                list_pairs.append(pair)
-        return list_pairs
 
-    def verify_all_pairs(self):
+        Returns:
+             list of all available pairs on the exchange.
+        """
+        info = self.client.get_pairs_info(quote_asset=self.quote_asset)
+
+        return list(info.keys())
+
+    def _verify_all_pairs(self):
         all_pairs = self.get_list_pairs()
 
         for pair in self.list_pairs:
             assert pair in all_pairs, f"{pair} is not a valid trading pair"
 
-    def get_all_historical_data(self, pair: str) -> pd.DataFrame:
+    def update_all_data(self):
         """
+        Update local historical data (OHLC + Vol) for all pairs in self.list_pairs.
+        """
+                
+        for pair in self.list_pairs:
+            self.get_historical_data(pair=pair,
+                                     update_data=True)
+
+    def get_historical_data(self, 
+                            pair: str,
+                            update_data: bool=False) -> pd.DataFrame:
+        """
+        Download (if necessary), save locally and return historical price data for a given trading pair.
+
         Note:
-            We automatically request data from January 1st 2019 for the first query.
+            Automatically request all available data, then save data into ./database/{exchange}/hist_{pair}_{self.candle}.csv.
         Args:
-            pair: string that represent the pair that has to be tested
+            pair (str): pair to retrieve data (ex: BTCUSDT on binance).
 
         Returns:
-            dataFrame that contain all the candles during the year entered for the wishing pair
-            If the dataFrame had already been download we get the DataFrame from the csv file else, we are downloading
-            all the data since 1st January 2017 to 1st January 2022.
+            DataFrame containing OHLC (Open High Low Close) candles and volumes in backtest timeframe.
         """
 
         # Create folder if it does not exist yet
@@ -173,7 +211,7 @@ class BackTest:
 
             df = pd.read_csv(f'database/{self.exchange}/hist_{pair}_{self.candle}.csv')
 
-            if self.update_data and (df['close_time'].max() < 1000 * (int(time.time()) - 2 * self.time_step.seconds)):
+            if update_data and (df['close_time'].max() < 1000 * (int(time.time()) - 2 * self.time_step.seconds)):
                 print(f'UPDATING HISTORICAL DATA {pair}', "\U000023F3", end="\r")
                 df = self.client.update_historical(
                     pair=pair,
@@ -219,7 +257,7 @@ class BackTest:
         return df[(df.open_time >= self.start) & (df.open_time <= self.end)]
 
     @staticmethod
-    def create_entry_prices_times(df: pd.DataFrame) -> pd.DataFrame:
+    def _create_entry_prices_times(df: pd.DataFrame) -> pd.DataFrame:
         """
         Args:
             df: dataframe that contains the 'entry_signal' with the following properties:
@@ -235,7 +273,7 @@ class BackTest:
         return df
 
     @staticmethod
-    def create_all_exit_point(df: pd.DataFrame) -> pd.DataFrame:
+    def _create_all_exit_point(df: pd.DataFrame) -> pd.DataFrame:
         """
         Args:
             df:
@@ -265,7 +303,7 @@ class BackTest:
 
         return df
 
-    def create_closest_exit(self, df: pd.DataFrame) -> pd.DataFrame:
+    def _create_closest_exit(self, df: pd.DataFrame) -> pd.DataFrame:
         """
         Args:
             df: dataframe that contains the variables entry_signal, stop_loss and take_profit
@@ -321,7 +359,7 @@ class BackTest:
 
         return df
 
-    def create_position_df(self, df: pd.DataFrame, pair: str):
+    def _create_position_df(self, df: pd.DataFrame, pair: str):
         """
         Args:
             df: timeseries dataframe that contains the following variables all_entry_time, entry_signal,
@@ -384,11 +422,11 @@ class BackTest:
             'stop_loss': 'sl'
         })
 
-        final_df = self.compute_profit(final_df)
+        final_df = self._compute_profit(final_df)
 
         self.df_all_positions[pair] = final_df
 
-    def compute_profit(self, df: pd.DataFrame) -> pd.DataFrame:
+    def _compute_profit(self, df: pd.DataFrame) -> pd.DataFrame:
         """
         Args:
             df: dataframe of all the positions that has to contain the following variables
@@ -417,7 +455,7 @@ class BackTest:
 
         return df
 
-    def create_timeseries(self, df: pd.DataFrame, pair: str):
+    def _create_timeseries(self, df: pd.DataFrame, pair: str):
         """
         Args:
             df: it's the position dataframes with all the statistics per positions
@@ -506,9 +544,9 @@ class BackTest:
     def plot_performance_graph(self, pair: str):
         """
         Args:
-            pair: string that represents the pair.
+            pair (str): pair to plot the graph.
         Returns:
-            Creates the plots with the total return, long return and short return
+            Creates the plots with the total profit, long profit and short profit.
         """
         begin = np.where(self.df_pos[f'total_profit_{pair}'] != 0)[0].tolist()[0] - 1
 
@@ -524,7 +562,7 @@ class BackTest:
         plt.title(f"Backtest {self.strategy_name} strategy for {pair}")
         plt.show()
 
-    def plot_wallet_exposure_graph(self):
+    def _plot_wallet_exposure_graph(self):
 
         begin = np.where(self.df_pos[f'wallet_exposure'] != 0)[0].tolist()[0] - 1
 
@@ -539,7 +577,7 @@ class BackTest:
 
         return 0
 
-    def get_pair_stats(self, df: pd.DataFrame, pair: str):
+    def _get_pair_stats(self, df: pd.DataFrame, pair: str):
         """
         Args:
             df : position dataframe that contains all the statistics needed
@@ -612,7 +650,7 @@ class BackTest:
         stat_perf = pd.DataFrame([perf_dict], columns=list(perf_dict.keys()))
         self.df_pairs_stat = pd.concat([self.df_pairs_stat, stat_perf])
 
-    def all_pairs_real_positions(self):
+    def _all_pairs_real_positions(self):
         """
         This method delete all the positions that wouldn't have been taken because the self.max_pos would be reach.
         Indeed if the backtest is run on 100 pairs and you have 80 positions at the same time, you wouldn't be
@@ -727,12 +765,12 @@ class BackTest:
 
         # Create timeseries for all pairs
         for pair in self.list_pairs:
-            self.create_timeseries(
+            self._create_timeseries(
                 df=self.df_all_positions[pair],
                 pair=pair
             )
 
-            self.get_pair_stats(
+            self._get_pair_stats(
                 df=self.df_all_positions[pair],
                 pair=pair
             )
@@ -744,7 +782,7 @@ class BackTest:
         self.df_pairs_stat = self.df_pairs_stat.set_index('pair', drop=False)
 
     @staticmethod
-    def compute_daily_return(row,
+    def _compute_daily_return(row,
                              df_all_pairs_positions):
         """
         Need to compute daily returns to compute statistics (Sharpe ratio, Sortino ratio, volatility...)
@@ -770,7 +808,7 @@ class BackTest:
         return row
 
     @staticmethod
-    def compute_drawdown(
+    def _compute_drawdown(
             row,
             df_daily):
 
@@ -786,7 +824,7 @@ class BackTest:
 
         return row
 
-    def create_full_statistics(self,
+    def _create_full_statistics(self,
                                since: datetime):
         """
         This method computes all the statistics on the overall strategy's performances.
@@ -806,13 +844,13 @@ class BackTest:
         df_daily['bankroll'] = np.nan
         df_daily['drawdown'] = 0
 
-        df_daily = df_daily.apply(lambda row: self.compute_daily_return(row, df_all_pairs_positions), axis=1)
+        df_daily = df_daily.apply(lambda row: self._compute_daily_return(row, df_all_pairs_positions), axis=1)
         # fillna for days without exits
         df_daily['daily_percentage_profit'] = df_daily['daily_percentage_profit'].fillna(0)
         df_daily['bankroll'] = df_daily['bankroll'].fillna(method='ffill')
         df_daily['bankroll'] = df_daily['bankroll'].fillna(self.start_bk)
 
-        df_daily = df_daily.apply(lambda row: self.compute_drawdown(row, df_daily), axis=1)
+        df_daily = df_daily.apply(lambda row: self._compute_drawdown(row, df_daily), axis=1)
 
         ################################ Compute overview #############################
 
@@ -997,10 +1035,10 @@ class BackTest:
 
         return all_statistics
 
-    def max_stop_loss(self,
+    def _max_stop_loss(self,
                       df: pd.DataFrame) -> pd.DataFrame:
         """
-        When using leverage in trading, positions ca be liquidated if margin isn't enough to refund the
+        When using leverage in trading, positions can be liquidated if margin isn't enough to refund the
         exchange we are borrowing from. This function puts the min or max stop loss we can set before being
         liquidated.
 
@@ -1025,15 +1063,13 @@ class BackTest:
     def not_any_future_info(self):
         """
         This function is here to make sure that self.entry_strategy() and self.exit_strategy()
-        don't have access to futures information (for a given row/date) when computing entry and exit signals.
+        don't have access to futures information (for a given row/date) when computing entry signals, SL prices, TP prices and exit signals.
         It takes random pairs and re-compute the signals with truncated historical DataFrames.
-
-        !!! HAS TO BE CALLED AFTER RUNNING BACK TEST !!
-
-        Returns:
-            None
-
+        
         Crashes if one of the assertion is not respected.
+
+        Note:
+            Has to be call after that the backtest has been run.
 
         """
         # Verify entry_point, tp and sl
@@ -1045,7 +1081,7 @@ class BackTest:
 
         for i, row in random_entry.iterrows():
             # Get historical DataFrame
-            df = self.get_all_historical_data(pair=row['pair'])
+            df = self.get_historical_data(pair=row['pair'])
 
             # truncate df
             df = df[df['open_time'] < row['entry_time']]
@@ -1074,7 +1110,7 @@ class BackTest:
 
             for i, row in random_exit.iterrows():
                 # Get historical DataFrame
-                df = self.get_all_historical_data(pair=row['pair'])
+                df = self.get_historical_data(pair=row['pair'])
 
                 # truncate df
                 df = df[df['open_time'] < row['exit_time']]
@@ -1084,7 +1120,7 @@ class BackTest:
 
                 df = self.entry_strategy(df)
 
-                df = self.create_entry_prices_times(df)
+                df = self._create_entry_prices_times(df)
 
                 df = self.exit_strategy(df)
 
@@ -1093,9 +1129,11 @@ class BackTest:
                 assert -row['entry_point'] == last_row[
                     'exit_signal'], "Exit signal is not the same, make sure you don't have access to futures " \
                                     "information when computing exit signals"
+                
+        print("Test PASSED")
 
     @staticmethod
-    def verify_tp_sl(df):
+    def _verify_tp_sl(df):
         """
         This method verify if all the TP and SL are valid:
             - For short positions, SL must be higher than entry price and
@@ -1125,18 +1163,22 @@ class BackTest:
     def run_backtest(self, save: bool = True):
 
         """
+        Run backtest, plot profit graph and show all statistics. 
 
         Args:
-            save: bool
+            save (bool): if True, save results in ./results/{self.strategy_name}_overall_stats.json.
 
-        RUN BACK TEST !
+        Returns:
+            ((DataFrame), (dict)) (tuple): 
+            (DataFrame containing all the trades taken during the backtest period, statistics of the strategy)
+            
         """
 
         for pair in self.list_pairs:
 
             print(f'BACK TESTING {pair}', "\U000023F3", end="\r")
 
-            df = self.get_all_historical_data(pair)
+            df = self.get_historical_data(pair)
 
             if len(df) == 0:
                 print(f"No data for {pair} in the interval")
@@ -1149,22 +1191,22 @@ class BackTest:
             for col in ['entry_signal', 'stop_loss', 'take_profit', 'position_size']:
                 assert col in df.columns, f"Missing {col} column. Please create this column in entry_strategy()"
 
-            self.verify_tp_sl(df)
+            self._verify_tp_sl(df)
 
-            df = self.create_entry_prices_times(df)
+            df = self._create_entry_prices_times(df)
 
-            df = self.max_stop_loss(df)
+            df = self._max_stop_loss(df)
 
             df = self.exit_strategy(df)
 
             assert 'exit_signal' in df.columns, \
                 f"Missing exit_signal column. Please create this column in entry_strategy()"
 
-            df = self.create_closest_exit(df)
+            df = self._create_closest_exit(df)
 
-            df = self.create_all_exit_point(df)
+            df = self._create_all_exit_point(df)
 
-            self.create_position_df(df, pair)
+            self._create_position_df(df, pair)
 
             print(f'BACK TESTING {pair}', "\U00002705")
 
@@ -1173,18 +1215,22 @@ class BackTest:
         self.all_pairs_real_positions()
         self.plot_performance_graph('all_pairs')
         if self.plot_exposure:
-            self.plot_wallet_exposure_graph()
+            self._plot_wallet_exposure_graph()
         print(f'Creating all positions and timeserie graph', "\U00002705")
 
         print(f'Computing all statistics', "\U000023F3", end="\r")
-        all_statistics = self.create_full_statistics(since=self.start)
+        all_statistics = self._create_full_statistics(since=self.start)
         print(f'Computing all statistics', "\U00002705")
 
         if save:
-            self.df_pairs_stat.to_csv(f'database/analysis/{self.strategy_name}/pairs_analytics.csv',
+            # Create folder if it does not exist yet
+            if not 'results' in os.listdir(f'{os.getcwd()}'):
+                os.mkdir(f'{os.getcwd()}/results')
+
+            self.df_pairs_stat.to_csv(f'results/{self.strategy_name}_pairs_stats.csv',
                                       index=False)
 
-            with open(f'database/analysis/{self.strategy_name}/all_statistics.json', 'w') as fp:
+            with open(f'results/{self.strategy_name}_overall_stats.json', 'w') as fp:
                 json.dump(all_statistics, fp)
 
-        return all_statistics
+        return self.df_all_pairs_positions, all_statistics

@@ -7,4 +7,3 @@ The BackTest class
 
 .. automodule:: novalabs.utils.backtest
    :members:
-   :undoc-members:
