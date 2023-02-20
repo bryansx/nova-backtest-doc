@@ -25,17 +25,17 @@ class BackTest:
     Args:
         exchange (str): exchange to backtest on ('bybit', 'binance', 'okx', 'huobi', 'kucoin', 'oanda' or 'btcex').
         strategy_name (str): name of the strategy.
-        candle (str): candle size / timeframe with format %m or %h or %d (ex: 15m for five minutes candles).
+        candle (str): candle size / timeframe with format %m or %h or %d (ex: 5m for five minutes candles).
         list_pairs (list): list of pairs to backtest.
         start (datetime): start datetime.
         end (datetime): end datetime.
-        start_bk (float): start bankrool size (usually USDT).
+        start_bk (float): start bankroll size.
         leverage (int): leverage to use for trades.
         max_pos (int): maximum number of simultaneous positions. 
-        max_holding (timedetla): maximum holding time of a position.
+        max_holding (timedelta): maximum holding time of a position.
         quote_asset (str): quote asset (default = 'USDT').
         geometric_sizes (bool): if True, ajust positions sizes with bankroll evolution. If profit > 0 positions sizes will increase proportionally, else will decrease (default = False).
-        print_all_pairs_charts (bool): if True, save & print each pairs profits charts. Else, save & print only cumulative profits chart (default = False).
+        print_all_pairs_charts (bool): if True, print each pairs profits charts. Else, save & print only cumulative profits chart (default = False).
         plot_exposure (bool): if True, plot wallet exposure through time.
         key (str): exchange's API KEY (**only for oanda**)
         secret (str): exchange's API SECRET (**only for oanda**)
@@ -57,8 +57,7 @@ class BackTest:
                  print_all_pairs_charts: bool = False,
                  plot_exposure: bool = False,
                  key: str = "",
-                 secret: str = "",
-                 passphrase: str = ""):
+                 secret: str = ""):
 
         self.exchange = exchange
         self.quote_asset = quote_asset
@@ -67,7 +66,7 @@ class BackTest:
         self.geometric_sizes = geometric_sizes
         self.leverage = leverage
 
-        self.client = clients(exchange=exchange, key=key, secret=secret, passphrase=passphrase)
+        self.client = clients(exchange=exchange, key=key, secret=secret)
 
         self.start_bk = start_bk
         self.actual_bk = self.start_bk
@@ -123,7 +122,7 @@ class BackTest:
             df (DataFrame): DataFrame returned by get_historical_data().
 
         Note: 
-            Must be re-write to fit with your strategy.
+            Must be re-written to fit with your strategy.
 
         Returns: 
             DataFrame returned by get_historical_data() with all the indicators (new columns added) neccessary to the strategy.
@@ -136,7 +135,7 @@ class BackTest:
             df (DataFrame): DataFrame returned by build_indicators().
 
         Note: 
-            Must be re-write to fit with your strategy.
+            Must be re-written to fit with your strategy.
 
         Returns: 
             DataFrame returned by build_indicators() with 4 new columns.
@@ -153,7 +152,7 @@ class BackTest:
             df (DataFrame): DataFrame returned by entry_strategy().
 
         Note: 
-            Must be re-write to fit with your strategy.
+            Must be re-written to fit with your strategy.
 
         Returns: 
             DataFrame returned by entry_strategy() with 1 new column.
