@@ -1,9 +1,4 @@
 Example
 =======
 
-
-To use NovaL@abs backtest, first install it using pip:
-
-.. code-block:: console
-
-   $ pip install novalabs-backtest
+An exemple of the implementation the macd strategy.
