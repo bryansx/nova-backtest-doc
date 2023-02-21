@@ -35,7 +35,7 @@ class BackTest:
         max_holding (timedelta): maximum holding time of a position.
         quote_asset (str): quote asset (default = 'USDT').
         geometric_sizes (bool): if True, ajust positions sizes with bankroll evolution. If profit > 0 positions sizes will increase proportionally, else will decrease (default = False).
-        print_all_pairs_charts (bool): if True, print each pairs profits charts. Else, save & print only cumulative profits chart (default = False).
+        plot_all_pairs_charts (bool): if True, print each pairs profits charts. Else, save & print only cumulative profits chart (default = False).
         plot_exposure (bool): if True, plot wallet exposure through time.
         key (str): exchange's API KEY (**only for oanda**)
         secret (str): exchange's API SECRET (**only for oanda**)
@@ -54,7 +54,7 @@ class BackTest:
                  max_holding: timedelta,
                  quote_asset: str = 'USDT',
                  geometric_sizes: bool = False,
-                 print_all_pairs_charts: bool = False,
+                 plot_all_pairs_charts: bool = False,
                  plot_exposure: bool = False,
                  key: str = "",
                  secret: str = ""):
@@ -79,7 +79,7 @@ class BackTest:
         self.last_exit_date = np.nan
         self.max_pos = max_pos
         self.max_holding = max_holding
-        self.print_all_pairs_charts = print_all_pairs_charts
+        self.plot_all_pairs_charts = plot_all_pairs_charts
         self.plot_exposure = plot_exposure
         self.time_step = get_timedelta_unit(interval=candle)
 
@@ -122,7 +122,7 @@ class BackTest:
             df (DataFrame): DataFrame returned by get_historical_data().
 
         Note: 
-            Must be re-written to fit with your strategy.
+            Must be re-written to fit with your strategy (cf. documentation Usage -> Write build_indicators()).
 
         Returns: 
             DataFrame returned by get_historical_data() with all the indicators (new columns added) neccessary to the strategy.
@@ -135,7 +135,7 @@ class BackTest:
             df (DataFrame): DataFrame returned by build_indicators().
 
         Note: 
-            Must be re-written to fit with your strategy.
+            Must be re-written to fit with your strategy (cf. documentation Usage -> Write entry_strategy()).
 
         Returns: 
             DataFrame returned by build_indicators() with 4 new columns.
@@ -152,7 +152,7 @@ class BackTest:
             df (DataFrame): DataFrame returned by entry_strategy().
 
         Note: 
-            Must be re-written to fit with your strategy.
+            Must be re-written to fit with your strategy (cf. documentation Usage -> Write exit_strategy()).
 
         Returns: 
             DataFrame returned by entry_strategy() with 1 new column.
@@ -174,6 +174,11 @@ class BackTest:
         all_pairs = self.get_list_pairs()
 
         for pair in self.list_pairs:
+
+            if not pair in all_pairs:
+                print(f"{pair} is not a valid trading pair.\nHere is the list of all available pairs on {self.exchange}:")
+                print(all_pairs)
+
             assert pair in all_pairs, f"{pair} is not a valid trading pair"
 
     def update_all_data(self):
@@ -536,11 +541,11 @@ class BackTest:
         # update bot total exposure
         self.df_pos['wallet_exposure'] = self.df_pos['wallet_exposure'] + self.df_pos[f'{pair}_exposure']
 
-        if not self.print_all_pairs_charts:
+        if not self.plot_all_pairs_charts:
             self.df_pos = self.df_pos.drop([f'total_profit_{pair}', f'long_profit_{pair}', f'short_profit_{pair}'],
                                            axis=1)
 
-    def plot_performance_graph(self, pair: str):
+    def plot_profit_graph(self, pair: str):
         """
         Args:
             pair (str): pair to plot the graph.
@@ -774,8 +779,8 @@ class BackTest:
                 pair=pair
             )
 
-            if self.print_all_pairs_charts:
-                self.plot_performance_graph(pair)
+            if self.plot_all_pairs_charts:
+                self.plot_profit_graph(pair)
 
 
         self.df_pairs_stat = self.df_pairs_stat.set_index('pair', drop=False)
@@ -1164,6 +1169,10 @@ class BackTest:
         """
         Run backtest, plot profit graph and show all statistics. 
 
+        Note:
+            Entry/Exit prices are considered as the next open price. 
+            Fees are computed with the limit order percentage fees of the choosen exchange.
+
         Args:
             save (bool): if True, save results in ./results/{self.strategy_name}_overall_stats.json.
 
@@ -1212,7 +1221,7 @@ class BackTest:
         # Keep only positions such that number of pos < max nb positions
         print(f'Creating all positions and timeserie graph', "\U000023F3", end="\r")
         self.all_pairs_real_positions()
-        self.plot_performance_graph('all_pairs')
+        self.plot_profit_graph('all_pairs')
         if self.plot_exposure:
             self._plot_wallet_exposure_graph()
         print(f'Creating all positions and timeserie graph', "\U00002705")

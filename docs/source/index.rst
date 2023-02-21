@@ -11,8 +11,8 @@ strong evaluation of your strategies performances.
 
 Check out the :doc:`installation` to see how to install the project and the 
 :doc:`usage` section for further information.
-We created a :doc:`example` for you to understand easily how to create and backtest
-your own strategy.
+We created a example for you to understand easily how to create and backtest
+your own strategy (cf. :doc:`usage`).
 
 .. note::
 
@@ -25,4 +25,3 @@ Contents
 
    installation
    usage
-   example
